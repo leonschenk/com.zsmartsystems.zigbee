@@ -34,6 +34,8 @@ import org.slf4j.LoggerFactory;
 import com.zsmartsystems.zigbee.ZigBeeNode.ZigBeeNodeState;
 import com.zsmartsystems.zigbee.app.ZigBeeNetworkExtension;
 import com.zsmartsystems.zigbee.app.discovery.ZigBeeDiscoveryExtension;
+import com.zsmartsystems.zigbee.database.ZigBeeNetworkDataStore;
+import com.zsmartsystems.zigbee.database.ZigBeeNetworkDatabaseManager;
 import com.zsmartsystems.zigbee.internal.ClusterMatcher;
 import com.zsmartsystems.zigbee.internal.NotificationService;
 import com.zsmartsystems.zigbee.internal.ZigBeeCommandNotifier;
@@ -155,9 +157,9 @@ public class ZigBeeNetworkManager implements ZigBeeNetwork, ZigBeeTransportRecei
     private final static AtomicInteger apsCounter = new AtomicInteger();
 
     /**
-     * The network state serializer
+     * The network database - used to save the state of the network and all its nodes
      */
-    private ZigBeeNetworkStateSerializer networkStateSerializer;
+    private final ZigBeeNetworkDatabaseManager databaseManager;
 
     /**
      * Executor service to execute update threads for discovery or mesh updates etc.
@@ -256,6 +258,7 @@ public class ZigBeeNetworkManager implements ZigBeeNetwork, ZigBeeTransportRecei
      * @param transport the dongle
      */
     public ZigBeeNetworkManager(final ZigBeeTransportTransmit transport) {
+        databaseManager = new ZigBeeNetworkDatabaseManager(this);
         Map<ZigBeeTransportState, Set<ZigBeeTransportState>> transitions = new HashMap<ZigBeeTransportState, Set<ZigBeeTransportState>>();
 
         transitions.put(null, new HashSet<>(Arrays.asList(ZigBeeTransportState.UNINITIALISED)));
@@ -276,15 +279,13 @@ public class ZigBeeNetworkManager implements ZigBeeNetwork, ZigBeeTransportRecei
     }
 
     /**
-     * Set a state {@link ZigBeeNetworkStateSerializer}. This will allow saving and restoring the network.
-     * The network manager will call {@link ZigBeeNetworkStateSerializer#deserialize} during the startup and
-     * {@link ZigBeeNetworkStateSerializer#serialize} during shutdown.
+     * Set a state {@link ZigBeeNetworkDataStore}. This will allow saving and restoring the network.
      *
-     * @param networkStateSerializer the {@link ZigBeeNetworkStateSerializer}
+     * @param dataStore the {@link ZigBeeNetworkDataStore}
      */
-    public void setNetworkStateSerializer(ZigBeeNetworkStateSerializer networkStateSerializer) {
+    public void setNetworkDataStore(ZigBeeNetworkDataStore dataStore) {
         synchronized (this) {
-            this.networkStateSerializer = networkStateSerializer;
+            databaseManager.setDataStore(dataStore);
         }
     }
 
@@ -325,11 +326,7 @@ public class ZigBeeNetworkManager implements ZigBeeNetwork, ZigBeeTransportRecei
     public ZigBeeStatus initialize() {
         setNetworkState(ZigBeeTransportState.UNINITIALISED);
 
-        synchronized (this) {
-            if (networkStateSerializer != null) {
-                networkStateSerializer.deserialize(this);
-            }
-        }
+        databaseManager.startup();
 
         ZigBeeStatus transportResponse = transport.initialize();
         if (transportResponse != ZigBeeStatus.SUCCESS) {
@@ -529,9 +526,7 @@ public class ZigBeeNetworkManager implements ZigBeeNetwork, ZigBeeTransportRecei
                 node.shutdown();
             }
 
-            if (networkStateSerializer != null) {
-                networkStateSerializer.serialize(this);
-            }
+            databaseManager.shutdown();
 
             for (ZigBeeNetworkExtension extension : extensions) {
                 extension.extensionShutdown();
@@ -1280,10 +1275,6 @@ public class ZigBeeNetworkManager implements ZigBeeNetwork, ZigBeeTransportRecei
             }
 
             node.shutdown();
-
-            if (networkStateSerializer != null) {
-                networkStateSerializer.serialize(this);
-            }
         }
     }
 
@@ -1321,10 +1312,6 @@ public class ZigBeeNetworkManager implements ZigBeeNetwork, ZigBeeTransportRecei
                         listener.nodeAdded(node);
                     }
                 });
-            }
-
-            if (networkStateSerializer != null) {
-                networkStateSerializer.serialize(this);
             }
         }
     }
@@ -1375,10 +1362,6 @@ public class ZigBeeNetworkManager implements ZigBeeNetwork, ZigBeeTransportRecei
                         }
                     }
                 });
-            }
-
-            if (networkStateSerializer != null) {
-                networkStateSerializer.serialize(this);
             }
         }
     }

@@ -20,8 +20,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.zsmartsystems.zigbee.app.ZigBeeApplication;
-import com.zsmartsystems.zigbee.dao.ZclClusterDao;
-import com.zsmartsystems.zigbee.dao.ZigBeeEndpointDao;
+import com.zsmartsystems.zigbee.database.ZclClusterDao;
+import com.zsmartsystems.zigbee.database.ZigBeeEndpointDao;
 import com.zsmartsystems.zigbee.transaction.ZigBeeTransactionMatcher;
 import com.zsmartsystems.zigbee.zcl.ZclCluster;
 import com.zsmartsystems.zigbee.zcl.ZclCommand;
